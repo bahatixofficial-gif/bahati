@@ -42,7 +42,10 @@ export async function PATCH(request: Request) {
   }
 
   const body = await request.json();
-  if (typeof body.id !== "string" || !["new", "read"].includes(body.status)) {
+  if (
+    typeof body.id !== "string" ||
+    !["new", "read", "archived"].includes(body.status)
+  ) {
     return NextResponse.json({ error: "Invalid update" }, { status: 400 });
   }
 

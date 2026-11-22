@@ -1,69 +1,57 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Barlow_Condensed, Rajdhani } from "next/font/google";
+import { Suspense } from "react";
 import SiteHeader from "../components/SiteHeader";
+import { getAdminSession } from "../lib/admin-session";
+import { getVouches } from "../lib/vouches";
+import VouchesBoard from "./VouchesBoard";
+
+const barlowCondensed = Barlow_Condensed({
+  weight: ["600", "700", "800"],
+  subsets: ["latin"],
+  variable: "--font-comic-display",
+});
+
+const rajdhani = Rajdhani({
+  weight: ["500", "600", "700"],
+  subsets: ["latin"],
+  variable: "--font-comic-body",
+});
 
 export const metadata: Metadata = {
   title: "Vouches | BAHATI",
 };
 
-const vouches = [
-  {
-    name: "Verified Customer",
-    service: "Hero Proficiency",
-    quote: "Fast communication and the order was completed exactly as discussed.",
-  },
-  {
-    name: "Verified Customer",
-    service: "Rank Progression",
-    quote: "Clear updates throughout the process and great overall experience.",
-  },
-  {
-    name: "Verified Customer",
-    service: "Coaching",
-    quote: "Helpful, organized, and easy to communicate with from start to finish.",
-  },
-];
+async function VouchesContent() {
+  const [vouches, session] = await Promise.all([
+    getVouches(),
+    getAdminSession(),
+  ]);
+
+  return <VouchesBoard initialVouches={vouches} isAdmin={Boolean(session)} />;
+}
 
 export default function VouchesPage() {
   return (
-    <main className="site-shell">
+    <main
+      className={`site-shell ${barlowCondensed.variable} ${rajdhani.variable}`}
+    >
       <SiteHeader />
       <section className="inner-page" aria-labelledby="vouches-title">
         <div className="page-heading">
-          <span className="page-eyebrow">Community feedback</span>
-          <h1 id="vouches-title">Vouches</h1>
+          <span className="page-eyebrow">Completed orders</span>
+          <h1
+            id="vouches-title"
+            style={{ fontFamily: "var(--font-comic-display), sans-serif" }}
+            className="uppercase tracking-wider font-extrabold"
+          >
+            Vouches
+          </h1>
         </div>
 
-        <div className="vouch-summary">
-          <div>
-            <strong>5.0</strong>
-            <span>Customer rating</span>
-          </div>
-          <div>
-            <strong>Verified</strong>
-            <span>BAHATI feedback</span>
-          </div>
-        </div>
-
-        <div className="vouch-grid">
-          {vouches.map((vouch, index) => (
-            <article className="vouch-card" key={`${vouch.name}-${index}`}>
-              <div className="vouch-stars" aria-label="5 out of 5 stars">
-                ★★★★★
-              </div>
-              <p>“{vouch.quote}”</p>
-              <div className="vouch-footer">
-                <strong>{vouch.name}</strong>
-                <span>{vouch.service}</span>
-              </div>
-            </article>
-          ))}
-        </div>
-
-        <Link className="primary-button vouch-order" href="/heroes">
-          Browse heroes
-          <span aria-hidden="true">↗</span>
-        </Link>
+        <Suspense fallback={<div className="min-h-[200px]" />}>
+          <VouchesContent />
+        </Suspense>
       </section>
     </main>
   );

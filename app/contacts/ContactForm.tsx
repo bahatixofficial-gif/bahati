@@ -31,8 +31,8 @@ export default function ContactForm() {
         <input name="name" type="text" placeholder="Your name" required />
       </label>
       <label>
-        Discord username
-        <input name="discord" type="text" placeholder="username" />
+        Your Discord username
+        <input name="discord" type="text" placeholder="your discord username" />
       </label>
       <label>
         What do you need?

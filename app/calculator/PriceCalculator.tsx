@@ -1,40 +1,39 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
-const services = [
-  { name: "Hero Proficiency", price: 12 },
-  { name: "Rank Progression", price: 18 },
-  { name: "Coaching", price: 20 },
-  { name: "Custom Package", price: 25 },
-] as const;
+const services = [{ name: "Lordboost", price: 12 }] as const;
 
 export default function PriceCalculator() {
+  const searchParams = useSearchParams();
+  const heroParam = searchParams.get("hero");
+
   const [service, setService] = useState<(typeof services)[number]["name"]>(
     services[0].name,
   );
   const [currentLevel, setCurrentLevel] = useState<number | "">(1);
   const [desiredLevel, setDesiredLevel] = useState<number | "">(55);
-  const [rush, setRush] = useState(false);
+
+  const safeCur = Math.max(1, Math.min(55, Number(currentLevel) || 1));
+  const safeDes = Math.max(safeCur, Math.min(55, Number(desiredLevel) || 55));
 
   const total = useMemo(() => {
     let base = 0;
-    const cur = Number(currentLevel) || 1;
-    const des = Number(desiredLevel) || 1;
 
-    for (let level = cur; level <= des; level++) {
+    for (let level = safeCur; level <= safeDes; level++) {
       if (level <= 20) {
-        base += 2;
-      } else if (level <= 35) {
-        base += 4;
+        base += 2; // 1 to 20 = $40
+      } else if (level <= 50) {
+        base += 5; // 21 to 50 = +$150 ($190 total)
       } else {
-        base += 7.5;
+        base += 8; // 51 to 55 = +$40 ($230 total)
       }
     }
 
-    return rush ? Math.round(base * 1.25) : Math.round(base);
-  }, [currentLevel, desiredLevel, rush]);
+    return Math.round(base);
+  }, [safeCur, safeDes]);
 
   const handleLevelChange = (
     value: string,
@@ -67,14 +66,40 @@ export default function PriceCalculator() {
   };
 
   const estimate = encodeURIComponent(
-    `${service} — ${currentLevel || 1} ${(currentLevel || 1) === 1 ? "level" : "levels"}${rush ? " — Priority" : ""}`,
+    `${service} — ${safeCur} to ${safeDes}`,
   );
 
+  const orderHref = heroParam
+    ? `/order?service=${estimate}&price=${total}&hero=${encodeURIComponent(heroParam)}`
+    : `/order?service=${estimate}&price=${total}`;
+
+  const comicBodyFont = {
+    fontFamily: "var(--font-comic-body), sans-serif",
+  };
+
+  const comicDisplayFont = {
+    fontFamily: "var(--font-comic-display), sans-serif",
+  };
+
+  // Soft, low-glare tactical stepper buttons
+  const softStepBtn =
+    "w-11 h-11 !p-0 flex items-center justify-center !bg-[#18181b] !text-white/85 font-semibold text-xl leading-none border border-white/15 hover:!bg-white/15 hover:!text-white hover:border-white/40 active:scale-95 transition-all duration-150 cursor-pointer select-none [clip-path:polygon(6px_0,100%_0,100%_calc(100%-6px),calc(100%-6px)_100%,0_100%,0_6px)]";
+
+  const softInputBox =
+    "w-20 h-11 text-2xl font-normal tracking-wider text-white bg-[#09090b] border border-white/20 focus:border-white/60 focus:bg-black text-center outline-none transition-colors [clip-path:polygon(6px_0,100%_0,100%_calc(100%-6px),calc(100%-6px)_100%,0_100%,0_6px)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
+
+  // Progress bar percentage calculations (levels 1 to 55)
+  const startPercent = ((safeCur - 1) / 54) * 100;
+  const widthPercent = Math.max(2, ((safeDes - safeCur) / 54) * 100);
+
   return (
-    <div className="calculator-layout">
-      <div className="calculator-panel">
-        <label>
-          Service
+    <div style={comicBodyFont} className="calculator-layout items-start">
+      <div className="calculator-panel bg-[#0e0e11] flex flex-col justify-between gap-7 border border-white/12 hover:border-white/25 transition-colors">
+        {/* Service Selector */}
+        <label className="flex flex-col gap-2">
+          <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/55">
+            Service
+          </span>
           <select
             value={service}
             onChange={(event) =>
@@ -82,133 +107,167 @@ export default function PriceCalculator() {
                 event.target.value as (typeof services)[number]["name"],
               )
             }
+            className="h-12 bg-[#141418] border border-white/15 focus:border-white/45 px-4 uppercase tracking-wider font-bold text-base text-white outline-none transition-colors [clip-path:polygon(8px_0,100%_0,100%_calc(100%-8px),calc(100%-8px)_100%,0_100%,0_8px)]"
           >
             {services.map((item) => (
-              <option key={item.name}>{item.name}</option>
+              <option key={item.name} value={item.name}>
+                {item.name}
+              </option>
             ))}
           </select>
         </label>
 
-        <div className="flex flex-col gap-6 my-4">
-          <div className="flex flex-col gap-2">
-            <span className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-[0.2em] opacity-70">
-              Current Level
-            </span>
-            <div className="flex items-center gap-3 w-fit">
-              <button
-                type="button"
-                className="w-12 h-12 flex items-center justify-center text-2xl font-bold text-[#D4AF37] bg-black/40 backdrop-blur-md border border-[#D4AF37]/30 rounded-xl hover:bg-[#D4AF37]/20 hover:border-[#D4AF37] transition-all duration-200 active:scale-95"
-                onClick={() => {
-                  const cur = typeof currentLevel === "number" ? currentLevel : 1;
-                  setCurrentLevel(Math.max(1, cur - 1));
-                }}
-              >
-                -
-              </button>
+        {/* Level Steppers + Visual Range Track */}
+        <div className="flex flex-col gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {/* Current Level */}
+            <div className="flex flex-col gap-2">
+              <span className="text-[11px] font-bold text-white/55 uppercase tracking-[0.2em]">
+                Current Level
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  aria-label="Decrease current level"
+                  className={softStepBtn}
+                  onClick={() => {
+                    const cur =
+                      typeof currentLevel === "number" ? currentLevel : 1;
+                    setCurrentLevel(Math.max(1, cur - 1));
+                  }}
+                >
+                  −
+                </button>
 
-              <input
-                type="number"
-                value={currentLevel}
-                onChange={(e) => handleLevelChange(e.target.value, setCurrentLevel)}
-                onBlur={validateCurrent}
-                className="w-24 h-14 text-4xl font-bold text-[#D4AF37] bg-black/60 backdrop-blur-xl border border-[#D4AF37]/40 rounded-xl text-center outline-none focus:border-[#D4AF37] focus:ring-0 transition-all duration-300 shadow-[0_0_20px_rgba(212,175,55,0.15)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-              />
+                <input
+                  type="number"
+                  value={currentLevel}
+                  onChange={(e) =>
+                    handleLevelChange(e.target.value, setCurrentLevel)
+                  }
+                  onBlur={validateCurrent}
+                  style={comicDisplayFont}
+                  className={softInputBox}
+                />
 
-              <button
-                type="button"
-                className="w-12 h-12 flex items-center justify-center text-2xl font-bold text-[#D4AF37] bg-black/40 backdrop-blur-md border border-[#D4AF37]/30 rounded-xl hover:bg-[#D4AF37]/20 hover:border-[#D4AF37] transition-all duration-200 active:scale-95"
-                onClick={() => {
-                  const cur = typeof currentLevel === "number" ? currentLevel : 1;
-                  const des = typeof desiredLevel === "number" ? desiredLevel : 55;
-                  setCurrentLevel(Math.min(des, cur + 1));
-                }}
-              >
-                +
-              </button>
+                <button
+                  type="button"
+                  aria-label="Increase current level"
+                  className={softStepBtn}
+                  onClick={() => {
+                    const cur =
+                      typeof currentLevel === "number" ? currentLevel : 1;
+                    const des =
+                      typeof desiredLevel === "number" ? desiredLevel : 55;
+                    setCurrentLevel(Math.min(des, cur + 1));
+                  }}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            {/* Desired Level */}
+            <div className="flex flex-col gap-2">
+              <span className="text-[11px] font-bold text-white/55 uppercase tracking-[0.2em]">
+                Desired Level
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  aria-label="Decrease desired level"
+                  className={softStepBtn}
+                  onClick={() => {
+                    const des =
+                      typeof desiredLevel === "number" ? desiredLevel : 55;
+                    const cur =
+                      typeof currentLevel === "number" ? currentLevel : 1;
+                    setDesiredLevel(Math.max(cur, des - 1));
+                  }}
+                >
+                  −
+                </button>
+
+                <input
+                  type="number"
+                  value={desiredLevel}
+                  onChange={(e) =>
+                    handleLevelChange(e.target.value, setDesiredLevel)
+                  }
+                  onBlur={validateDesired}
+                  style={comicDisplayFont}
+                  className={softInputBox}
+                />
+
+                <button
+                  type="button"
+                  aria-label="Increase desired level"
+                  className={softStepBtn}
+                  onClick={() => {
+                    const des =
+                      typeof desiredLevel === "number" ? desiredLevel : 55;
+                    setDesiredLevel(Math.min(55, des + 1));
+                  }}
+                >
+                  +
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <span className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-[0.2em] opacity-70">
-              Desired Level
-            </span>
-            <div className="flex items-center gap-3 w-fit">
-              <button
-                type="button"
-                className="w-12 h-12 flex items-center justify-center text-2xl font-bold text-[#D4AF37] bg-black/40 backdrop-blur-md border border-[#D4AF37]/30 rounded-xl hover:bg-[#D4AF37]/20 hover:border-[#D4AF37] transition-all duration-200 active:scale-95"
-                onClick={() => {
-                  const des = typeof desiredLevel === "number" ? desiredLevel : 55;
-                  const cur = typeof currentLevel === "number" ? currentLevel : 1;
-                  setDesiredLevel(Math.max(cur, des - 1));
+          {/* Subtle Visual Boost Span Track */}
+          <div className="flex flex-col gap-1.5 pt-1">
+            <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.16em] text-white/45">
+              <span>LVL {safeCur}</span>
+              <span className="text-white/70">
+                +{safeDes - safeCur} {safeDes - safeCur === 1 ? "Level" : "Levels"}
+              </span>
+              <span>LVL {safeDes}</span>
+            </div>
+            <div className="h-1.5 w-full bg-white/10 overflow-hidden [clip-path:polygon(3px_0,100%_0,100%_calc(100%-3px),calc(100%-3px)_100%,0_100%,0_3px)]">
+              <div
+                style={{
+                  marginLeft: `${startPercent}%`,
+                  width: `${widthPercent}%`,
                 }}
-              >
-                -
-              </button>
-
-              <input
-                type="number"
-                value={desiredLevel}
-                onChange={(e) => handleLevelChange(e.target.value, setDesiredLevel)}
-                onBlur={validateDesired}
-                className="w-24 h-14 text-4xl font-bold text-[#D4AF37] bg-black/60 backdrop-blur-xl border border-[#D4AF37]/40 rounded-xl text-center outline-none focus:border-[#D4AF37] focus:ring-0 transition-all duration-300 shadow-[0_0_20px_rgba(212,175,55,0.15)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className="h-full bg-[#facc15] transition-all duration-200"
               />
-
-              <button
-                type="button"
-                className="w-12 h-12 flex items-center justify-center text-2xl font-bold text-[#D4AF37] bg-black/40 backdrop-blur-md border border-[#D4AF37]/30 rounded-xl hover:bg-[#D4AF37]/20 hover:border-[#D4AF37] transition-all duration-200 active:scale-95"
-                onClick={() => {
-                  const des = typeof desiredLevel === "number" ? desiredLevel : 55;
-                  setDesiredLevel(Math.min(55, des + 1));
-                }}
-              >
-                +
-              </button>
             </div>
           </div>
         </div>
 
-        <label className="rush-option">
-          <input
-            type="checkbox"
-            checked={rush}
-            onChange={(event) => setRush(event.target.checked)}
-          />
-          <span>
-            Priority completion
-            <small>25% priority fee</small>
+        {/* Soft, Low-Glare Note Callout */}
+        <div className="flex items-center gap-3 bg-white/[0.03] border border-white/10 px-4 py-3 [clip-path:polygon(8px_0,100%_0,100%_calc(100%-8px),calc(100%-8px)_100%,0_100%,0_8px)]">
+          <span className="bg-white/10 text-white/80 border border-white/15 text-[10px] font-bold uppercase tracking-[0.18em] px-2 py-0.5 shrink-0 [clip-path:polygon(4px_0,100%_0,100%_calc(100%-4px),calc(100%-4px)_100%,0_100%,0_4px)]">
+            NOTE
           </span>
-        </label>
+          <p className="text-xs font-medium tracking-wide text-white/65">
+            Prices may vary or be negotiated depending on the hero tier.
+          </p>
+        </div>
       </div>
 
-      <aside className="price-summary" aria-live="polite">
-        <span className="contact-label">Estimated total</span>
-        <strong className="price-total">${total}</strong>
-        <dl>
-          <div>
-            <dt>Service</dt>
-            <dd>{service}</dd>
-          </div>
-          <div>
-            <dt>Current Level</dt>
-            <dd>{currentLevel || 1}</dd>
-
-            <dt>Desired Level</dt>
-            <dd>{desiredLevel || 1}</dd>
-          </div>
-          <div>
-            <dt>Priority</dt>
-            <dd>{rush ? "Yes" : "No"}</dd>
-          </div>
-        </dl>
-        <Link
-          className="primary-button calculator-order"
-          href={`/order?service=${estimate}`}
+      {/* Compact Summary Card: Only Estimated Total + Yellow Button */}
+      <aside
+        className="price-summary !bg-[#0e0e11] !border !border-white/12 !border-t-2 !border-t-[#facc15] !p-5 !gap-5 self-start overflow-hidden"
+        aria-live="polite"
+      >
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/55">
+          Estimated total
+        </p>
+        <p
+          style={comicDisplayFont}
+          className="text-4xl font-bold text-white"
         >
-          Continue to order
-          <span aria-hidden="true">↗</span>
+          ${total}
+        </p>
+        <Link
+          href={orderHref}
+          className="flex h-12 items-center justify-center bg-[#facc15] text-black font-bold uppercase tracking-[0.16em] hover:bg-[#fde047] transition-colors [clip-path:polygon(8px_0,100%_0,100%_calc(100%-8px),calc(100%-8px)_100%,0_100%,0_8px)]"
+        >
+          Continue
         </Link>
       </aside>
     </div>
   );
 }
-
