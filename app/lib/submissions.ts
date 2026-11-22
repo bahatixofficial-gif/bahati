@@ -10,7 +10,11 @@ export type Submission = {
   data: Record<string, string>;
 };
 
-const dataDir = path.join(process.cwd(), "data");
+// Use /tmp on Vercel (since Vercel's project directory is read-only), and local ./data on your PC
+const isVercel = Boolean(process.env.VERCEL);
+const dataDir = isVercel
+  ? path.join("/tmp", "bahati-data")
+  : path.join(process.cwd(), "data");
 const filePath = path.join(dataDir, "submissions.json");
 
 function toTitleCase(str: string) {
@@ -26,7 +30,10 @@ async function notifyDiscord(
   data: Record<string, string>,
 ): Promise<void> {
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL?.trim();
-  if (!webhookUrl) return;
+  if (!webhookUrl) {
+    console.warn("DISCORD_WEBHOOK_URL is not set");
+    return;
+  }
 
   const isOrder = type === "order";
   const matchedHero = isOrder
@@ -107,8 +114,13 @@ async function readSubmissionsFile(): Promise<Submission[]> {
 }
 
 async function writeSubmissionsFile(submissions: Submission[]): Promise<void> {
-  await fs.mkdir(dataDir, { recursive: true });
-  await fs.writeFile(filePath, JSON.stringify(submissions, null, 2), "utf-8");
+  try {
+    await fs.mkdir(dataDir, { recursive: true });
+    await fs.writeFile(filePath, JSON.stringify(submissions, null, 2), "utf-8");
+  } catch (error) {
+    // Prevent read-only filesystem errors from blocking order submission
+    console.error("Could not write submissions file:", error);
+  }
 }
 
 export async function getSubmissions(): Promise<Submission[]> {
