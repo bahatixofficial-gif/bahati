@@ -7,7 +7,7 @@ const CONTACT_INFO = {
   discordId: "1260018273664372922",
   email: "bahatixofficial@gmail.com",
   discordServerName: "Sinners",
-  discordServerInvite: "https://discord.com",
+  discordServerInvite: "https://discord.gg/yw36dpdV5V",
 };
 
 const FAQS = [
