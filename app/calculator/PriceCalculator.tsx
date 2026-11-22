@@ -242,7 +242,7 @@ export default function PriceCalculator() {
             NOTE
           </span>
           <p className="text-xs font-medium tracking-wide text-white/65">
-            Prices may vary or be negotiated depending on the hero tier.
+            These are not the final prices and may vary or be negotiated depending on the hero tier.
           </p>
         </div>
       </div>
