@@ -26,9 +26,9 @@ export default function PriceCalculator() {
       if (level <= 20) {
         base += 2; // 1 to 20 = $40
       } else if (level <= 50) {
-        base += 5; // 21 to 50 = +$150 ($190 total)
+        base += 4; // 21 to 50 = +$120 ($160 total)
       } else {
-        base += 8; // 51 to 55 = +$40 ($230 total)
+        base += 8; // 51 to 55 = +$40 ($200 total)
       }
     }
 

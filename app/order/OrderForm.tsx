@@ -1,23 +1,45 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { heroes, type Hero } from "../data/heroes";
 
+const services = [{ name: "Lordboost", price: 12 }] as const;
+
 export default function OrderForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const initialService = searchParams.get("service") || "";
-  const initialPrice = searchParams.get("price") || "";
-  const initialHeroParam = searchParams.get("hero")?.toUpperCase() || "";
+  const initialHeroParam = searchParams.get("hero")?.toUpperCase() ?? "";
+  const initialServiceParam = searchParams.get("service") ?? "";
+
+  return (
+    <OrderFormContent
+      key={searchParams.toString()}
+      initialHeroParam={initialHeroParam}
+      initialServiceParam={initialServiceParam}
+    />
+  );
+}
+
+function OrderFormContent({
+  initialHeroParam,
+  initialServiceParam,
+}: {
+  initialHeroParam: string;
+  initialServiceParam: string;
+}) {
+  const initialService =
+    services.find((item) => item.name === initialServiceParam)?.name ??
+    services[0].name;
 
   const sortedHeroes = useMemo(
     () => [...heroes].sort((a, b) => a.name.localeCompare(b.name)),
     [],
   );
 
-  const [service, setService] = useState(initialService);
+  const [service, setService] =
+    useState<(typeof services)[number]["name"]>(initialService);
+  const [currentLevel, setCurrentLevel] = useState<number | "">(1);
+  const [desiredLevel, setDesiredLevel] = useState<number | "">(55);
   const [hero, setHero] = useState(
     sortedHeroes.some((h) => h.name === initialHeroParam)
       ? initialHeroParam
@@ -26,8 +48,6 @@ export default function OrderForm() {
   const [heroDropdownOpen, setHeroDropdownOpen] = useState(false);
   const [heroSearch, setHeroSearch] = useState("");
   const [heroError, setHeroError] = useState(false);
-  const [packageError, setPackageError] = useState(false);
-  const [price, setPrice] = useState(initialPrice);
   const [discord, setDiscord] = useState("");
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
@@ -37,24 +57,25 @@ export default function OrderForm() {
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const hasPackageSelected = Boolean(
-    service.trim() && price.trim() && Number(price) > 0,
-  );
+  const safeCur = Math.max(1, Math.min(55, Number(currentLevel) || 1));
+  const safeDes = Math.max(safeCur, Math.min(55, Number(desiredLevel) || 55));
 
-  useEffect(() => {
-    const paramService = searchParams.get("service");
-    const paramPrice = searchParams.get("price");
-    const paramHero = searchParams.get("hero")?.toUpperCase();
+  const total = useMemo(() => {
+    let base = 0;
+    for (let level = safeCur; level <= safeDes; level++) {
+      if (level <= 20) {
+        base += 2;
+      } else if (level <= 50) {
+        base += 4;
+      } else {
+        base += 8;
+      }
+    }
 
-    if (paramService !== null) setService(paramService);
-    if (paramPrice !== null) setPrice(paramPrice);
-    if (paramHero && sortedHeroes.some((h) => h.name === paramHero)) {
-      setHero(paramHero);
-    }
-    if (paramService && paramPrice && Number(paramPrice) > 0) {
-      setPackageError(false);
-    }
-  }, [searchParams, sortedHeroes]);
+    return Math.round(base);
+  }, [safeCur, safeDes]);
+
+  const formattedService = `${service} — ${safeCur} to ${safeDes}`;
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -91,31 +112,49 @@ export default function OrderForm() {
     setHeroSearch("");
   };
 
-  const handleResetPackage = () => {
-    setService("");
-    setPrice("0");
-    setPackageError(false);
-    router.replace(hero ? `/order?hero=${encodeURIComponent(hero)}` : "/order", {
-      scroll: false,
-    });
+  const handleLevelChange = (
+    value: string,
+    setter: (value: number | "") => void,
+  ) => {
+    if (value === "") {
+      setter("");
+      return;
+    }
+
+    const numberValue = Number.parseInt(value, 10);
+    if (!Number.isNaN(numberValue)) setter(numberValue);
+  };
+
+  const validateCurrent = () => {
+    let value = typeof currentLevel === "number" ? currentLevel : 1;
+    value = Math.max(1, Math.min(55, value));
+    const targetDesired = Math.max(
+      1,
+      Math.min(55, typeof desiredLevel === "number" ? desiredLevel : 55),
+    );
+    if (value > targetDesired) value = targetDesired;
+    setCurrentLevel(value);
+  };
+
+  const validateDesired = () => {
+    let value = typeof desiredLevel === "number" ? desiredLevel : 55;
+    value = Math.max(1, Math.min(55, value));
+    const targetCurrent = Math.max(
+      1,
+      Math.min(55, typeof currentLevel === "number" ? currentLevel : 1),
+    );
+    if (value < targetCurrent) value = targetCurrent;
+    setDesiredLevel(value);
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    let blocked = false;
-
-    if (!hasPackageSelected) {
-      setPackageError(true);
-      blocked = true;
-    }
 
     if (!hero) {
       setHeroError(true);
-      if (!blocked) setHeroDropdownOpen(true);
-      blocked = true;
+      setHeroDropdownOpen(true);
+      return;
     }
-
-    if (blocked) return;
 
     setSubmitting(true);
     setSubmitError("");
@@ -127,9 +166,9 @@ export default function OrderForm() {
         body: JSON.stringify({
           type: "order",
           data: {
-            service,
+            service: formattedService,
             hero,
-            price: price.startsWith("$") ? price : `$${price}`,
+            price: `$${total}`,
             discord,
             email: email.trim() || "Not provided",
             notes: notes.trim() || "-",
@@ -177,9 +216,12 @@ export default function OrderForm() {
     color: "#000000",
   };
 
-  const calculatorHref = hero
-    ? `/calculator?hero=${encodeURIComponent(hero)}`
-    : "/calculator";
+  const startPercent = ((safeCur - 1) / 54) * 100;
+  const widthPercent = Math.max(2, ((safeDes - safeCur) / 54) * 100);
+  const softStepBtn =
+    "w-11 h-11 !p-0 flex items-center justify-center !bg-[#18181b] !text-white/85 font-semibold text-xl leading-none border border-white/15 hover:!bg-white/15 hover:!text-white hover:border-white/40 active:scale-95 transition-all duration-150 cursor-pointer select-none [clip-path:polygon(6px_0,100%_0,100%_calc(100%-6px),calc(100%-6px)_100%,0_100%,0_6px)]";
+  const softInputBox =
+    "w-20 h-11 text-2xl font-normal tracking-wider text-white bg-[#09090b] border border-white/20 focus:border-white/60 focus:bg-black text-center outline-none transition-colors [clip-path:polygon(6px_0,100%_0,100%_calc(100%-6px),calc(100%-6px)_100%,0_100%,0_6px)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
   if (submitted) {
     return (
@@ -223,7 +265,7 @@ export default function OrderForm() {
           Keep an eye on your Discord DMs (
           <strong className="text-white">{discord}</strong>) to confirm your{" "}
           <strong className="text-white">{hero}</strong> boost (
-          <strong className="text-[#22c55e]">${price}</strong>) and get started.
+          <strong className="text-[#22c55e]">${total}</strong>) and get started.
         </p>
 
         <button
@@ -268,43 +310,139 @@ export default function OrderForm() {
           </span>
         </div>
 
-        {/* Locked Service & Price Section */}
+        {/* Service and live pricing controls */}
         <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
+          <label className="flex flex-col gap-2">
             <span className={labelClass}>
               <span className="w-1.5 h-1.5 bg-white shrink-0" />
-              <span>Service, Level Range &amp; Price</span>
+              <span>Service</span>
             </span>
-
-            {hasPackageSelected ? (
-              <button
-                type="button"
-                onClick={handleResetPackage}                className="text-xs font-bold uppercase tracking-[0.12em] text-white/60 hover:text-white transition-colors"
-              >
-                Change
-              </button>
-            ) : null}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Link
-              href="/calculator"
-              className="flex items-center justify-between gap-3 bg-[#09090b] border-2 border-white/30 px-4 py-3 text-white hover:border-white transition-colors [clip-path:polygon(10px_0,100%_0,100%_calc(100%-10px),calc(100%-10px)_100%,0_100%,0_10px)]"
+            <select
+              value={service}
+              onChange={(event) =>
+                setService(
+                  event.target.value as (typeof services)[number]["name"],
+                )
+              }
+              className="h-12 bg-[#141418] border-2 border-white/30 focus:border-white/60 px-4 uppercase tracking-wider font-bold text-base text-white outline-none transition-colors"
             >
-              <span className="text-sm font-bold">
-                {service || "Choose a boost package"}
-              </span>
-              <span className="text-[#22c55e] font-bold">
-                {hasPackageSelected ? `$${price}` : ""}
-              </span>
-            </Link>
+              {services.map((item) => (
+                <option key={item.name} value={item.name}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="flex flex-col gap-2">
+              <span className={labelClass}>Current Level</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  aria-label="Decrease current level"
+                  className={softStepBtn}
+                  onClick={() => setCurrentLevel(Math.max(1, safeCur - 1))}
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  max={55}
+                  value={currentLevel}
+                  onChange={(event) =>
+                    handleLevelChange(event.target.value, setCurrentLevel)
+                  }
+                  onBlur={validateCurrent}
+                  style={comicDisplayFont}
+                  className={softInputBox}
+                />
+                <button
+                  type="button"
+                  aria-label="Increase current level"
+                  className={softStepBtn}
+                  onClick={() => setCurrentLevel(Math.min(safeDes, safeCur + 1))}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <span className={labelClass}>Desired Level</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  aria-label="Decrease desired level"
+                  className={softStepBtn}
+                  onClick={() =>
+                    setDesiredLevel(Math.max(safeCur, safeDes - 1))
+                  }
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  max={55}
+                  value={desiredLevel}
+                  onChange={(event) =>
+                    handleLevelChange(event.target.value, setDesiredLevel)
+                  }
+                  onBlur={validateDesired}
+                  style={comicDisplayFont}
+                  className={softInputBox}
+                />
+                <button
+                  type="button"
+                  aria-label="Increase desired level"
+                  className={softStepBtn}
+                  onClick={() => setDesiredLevel(Math.min(55, safeDes + 1))}
+                >
+                  +
+                </button>
+              </div>
+            </div>
           </div>
 
-          {packageError && (
-            <p className="text-sm font-bold text-red-400">
-              Click to choose the hero levels.
+          <div className="flex flex-col gap-1.5 pt-1">
+            <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.16em] text-white/45">
+              <span>LVL {safeCur}</span>
+              <span className="flex items-center gap-2 text-white/70">
+                <span>
+                  +{safeDes - safeCur}{" "}
+                  {safeDes - safeCur === 1 ? "Level" : "Levels"}
+                </span>
+                <span
+                  aria-live="polite"
+                  className="whitespace-nowrap text-[#facc15]"
+                >
+                  Est. ${total}
+                </span>
+              </span>
+              <span>LVL {safeDes}</span>
+            </div>
+            <div className="h-1.5 w-full bg-white/10 overflow-hidden [clip-path:polygon(3px_0,100%_0,100%_calc(100%-3px),calc(100%-3px)_100%,0_100%,0_3px)]">
+              <div
+                style={{
+                  marginLeft: `${startPercent}%`,
+                  width: `${widthPercent}%`,
+                }}
+                className="h-full bg-[#facc15] transition-all duration-200"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 bg-white/[0.03] border border-white/10 px-4 py-3">
+            <span className="bg-white/10 text-white/80 border border-white/15 text-[10px] font-bold uppercase tracking-[0.18em] px-2 py-0.5 shrink-0">
+              NOTE
+            </span>
+            <p className="text-xs font-medium tracking-wide text-white/65">
+              These are not the final prices and may vary or be negotiated
+              depending on the hero tier.
             </p>
-          )}
+          </div>
         </div>
 
         {/* Hero Selection */}
@@ -424,21 +562,42 @@ export default function OrderForm() {
             ORDER SUMMARY
           </span>
 
-          <div className="space-y-3 border-y-2 border-white/15 py-5">
+          <div className="space-y-4 border-y-2 border-white/15 py-5">
+            {selectedHeroData ? (
+              <div className="flex items-center gap-4">
+                <img
+                  src={selectedHeroData.image}
+                  alt={selectedHeroData.name}
+                  className="h-20 w-20 object-cover object-top border-2 border-white/30 bg-black"
+                />
+                <div>
+                  <strong className="block text-white">
+                    {selectedHeroData.name}
+                  </strong>
+                  <span className="text-xs font-bold uppercase tracking-[0.14em] text-white/60">
+                    {selectedHeroData.role}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-white/60">
+                Select a hero to preview your order.
+              </p>
+            )}
             <div className="flex items-start justify-between gap-4">
-              <span className="text-xs font-bold uppercase tracking-[0.14em] text-white/60">Hero</span>
-              <strong className="text-right text-white">{hero || "Not selected"}</strong>
-            </div>
-            <div className="flex items-start justify-between gap-4">
-              <span className="text-xs font-bold uppercase tracking-[0.14em] text-white/60">Package</span>
-              <strong className="text-right text-white">{service || "Not selected"}</strong>
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-white/60">
+                Package
+              </span>
+              <strong className="text-right text-white">
+                {formattedService}
+              </strong>
             </div>
           </div>
 
           <div className="flex items-end justify-between">
             <span className="text-xs font-bold uppercase tracking-[0.16em] text-white/60">Total</span>
-            <strong className="text-3xl text-[#22c55e]">
-              {hasPackageSelected ? `$${price}` : "—"}
+            <strong aria-live="polite" className="text-3xl text-[#22c55e]">
+              ${total}
             </strong>
           </div>
         </div>
